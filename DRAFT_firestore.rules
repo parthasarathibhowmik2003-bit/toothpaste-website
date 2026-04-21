@@ -1,0 +1,105 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // 0. Default Deny Catch-all
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // 3. Primitive Helpers
+    function isValidId(id) { return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$'); }
+    function incoming() { return request.resource.data; }
+    function existing() { return resource.data; }
+    function isSignedIn() { return request.auth != null; }
+    function isVerified() { return isSignedIn() && request.auth.token.email_verified == true; }
+    function isAdmin() { return isSignedIn() && exists(/databases/$(database)/documents/admins/$(request.auth.uid)); }
+
+    // 2. Validation Blueprints
+    function isValidUser(data) {
+      return data.displayName is string && data.displayName.size() >= 2 && data.displayName.size() <= 100 &&
+             data.createdAt == request.time;
+    }
+
+    function isValidUserPrivate(data) {
+      return data.email is string && data.email.size() <= 100 && (data.address == null || data.address is string) &&
+             (data.phoneNumber == null || data.phoneNumber is string);
+    }
+
+    function isValidOrder(data) {
+      return data.userId == request.auth.uid &&
+             data.items is list && data.items.size() > 0 && data.items.size() <= 50 &&
+             data.total is number && data.total >= 0 &&
+             data.status in ['pending', 'shipped', 'delivered'] &&
+             data.createdAt == request.time;
+    }
+
+    function isInitialOrder(data) {
+      return isValidOrder(data) && data.status == 'pending';
+    }
+
+    function isValidReview(data) {
+      return data.userId == request.auth.uid &&
+             data.productId is string && data.productId.size() <= 64 &&
+             data.rating is int && data.rating >= 1 && data.rating <= 5 &&
+             data.comment is string && data.comment.size() <= 1000 &&
+             data.createdAt == request.time;
+    }
+
+    // --- Collections ---
+
+    // Users
+    match /users/{userId} {
+      allow get: if isSignedIn();
+      allow list: if false; // Users cannot be listed bulk
+      allow create: if isVerified() && userId == request.auth.uid && isValidUser(incoming());
+      allow update: if isVerified() && userId == request.auth.uid && isValidUser(incoming()) &&
+                      incoming().createdAt == existing().createdAt &&
+                      incoming().diff(existing()).affectedKeys().hasOnly(['displayName', 'photoURL']);
+
+      match /private/info {
+        allow get: if isSignedIn() && userId == request.auth.uid;
+        allow write: if isVerified() && userId == request.auth.uid && isValidUserPrivate(incoming());
+      }
+    }
+
+    // Orders
+    match /orders/{orderId} {
+      allow get: if isSignedIn() && (existing().userId == request.auth.uid || isAdmin());
+      allow list: if isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin());
+      
+      allow create: if isVerified() && isInitialOrder(incoming()) && isValidId(orderId);
+      
+      allow update: if isVerified() && (
+        (existing().userId == request.auth.uid && existing().status == 'pending' &&
+         incoming().diff(existing()).affectedKeys().hasOnly(['items', 'total', 'subtotal', 'gst', 'shipping']) &&
+         isValidOrder(incoming())) ||
+        isAdmin()
+      );
+      
+      // Prevent deleting delivered orders
+      allow delete: if isAdmin() || (existing().userId == request.auth.uid && existing().status == 'pending');
+    }
+
+    // Reviews
+    match /products/{productId}/reviews/{reviewId} {
+      allow read: if true; // Publicly readable
+      allow create: if isVerified() && isValidReview(incoming()) && isValidId(reviewId) && productId == incoming().productId;
+      allow update: if isVerified() && incoming().userId == request.auth.uid && isValidReview(incoming()) &&
+                      incoming().diff(existing()).affectedKeys().hasOnly(['rating', 'comment']) &&
+                      incoming().userId == existing().userId &&
+                      incoming().productId == existing().productId;
+      allow delete: if isVerified() && (existing().userId == request.auth.uid || isAdmin());
+    }
+
+    // Dentists (Read only for public, Admin for write)
+    match /dentists/{dentistId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+    
+    // Admin list
+    match /admins/{adminId} {
+      allow read: if isSignedIn() && adminId == request.auth.uid;
+    }
+  }
+}

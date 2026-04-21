@@ -1,0 +1,103 @@
+{
+  "entities": {
+    "User": {
+      "title": "User Profile",
+      "description": "Public profile of a Dentora user.",
+      "type": "object",
+      "properties": {
+        "displayName": { "type": "string" },
+        "photoURL": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["displayName", "createdAt"]
+    },
+    "UserPrivate": {
+      "title": "User Private Data",
+      "description": "Sensitive user information including PII.",
+      "type": "object",
+      "properties": {
+        "email": { "type": "string", "format": "email" },
+        "address": { "type": "string" },
+        "phoneNumber": { "type": "string" }
+      }
+    },
+    "Order": {
+      "title": "Order",
+      "description": "A purchase order placed by a user.",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "items": { 
+          "type": "array",
+          "items": { "$ref": "#/entities/OrderItem" }
+        },
+        "subtotal": { "type": "number" },
+        "gst": { "type": "number" },
+        "shipping": { "type": "number" },
+        "total": { "type": "number" },
+        "status": { "type": "string", "enum": ["pending", "shipped", "delivered"] },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "items", "total", "status", "createdAt"]
+    },
+    "OrderItem": {
+      "type": "object",
+      "properties": {
+        "productId": { "type": "string" },
+        "quantity": { "type": "integer" },
+        "price": { "type": "number" }
+      }
+    },
+    "Review": {
+      "title": "Review",
+      "description": "A customer review for a product.",
+      "type": "object",
+      "properties": {
+        "productId": { "type": "string" },
+        "userId": { "type": "string" },
+        "userName": { "type": "string" },
+        "rating": { "type": "integer" },
+        "comment": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["productId", "userId", "rating", "createdAt"]
+    },
+    "Dentist": {
+      "title": "Dentist Profile",
+      "description": "Professional profile of a dentist.",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" },
+        "title": { "type": "string" },
+        "qualification": { "type": "string" },
+        "experience": { "type": "string" },
+        "image": { "type": "string" },
+        "quote": { "type": "string" },
+        "specialty": { "type": "string" }
+      },
+      "required": ["name", "title", "specialty"]
+    }
+  },
+  "firestore": {
+    "users/{userId}": {
+      "schema": "User",
+      "description": "Public user profiles."
+    },
+    "users/{userId}/private/info": {
+      "schema": "UserPrivate",
+      "description": "Private user information."
+    },
+    "orders/{orderId}": {
+      "schema": "Order",
+      "description": "Customer orders."
+    },
+    "products/{productId}/reviews/{reviewId}": {
+      "schema": "Review",
+      "description": "Product reviews."
+    },
+    "dentists/{dentistId}": {
+      "schema": "Dentist",
+      "description": "Global dental experts."
+    }
+  }
+}

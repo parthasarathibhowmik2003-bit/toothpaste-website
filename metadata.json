@@ -1,0 +1,6 @@
+{
+  "name": "Dentora",
+  "description": "Premium oral care brand providing modern, effective, and professional dental solutions for a brighter smile.",
+  "requestFramePermissions": ["camera"],
+  "majorCapabilities": []
+}
